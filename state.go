@@ -1,4 +1,4 @@
-package protocol
+package smtp
 
 // State represents the state of an SMTP conversation
 type State int
