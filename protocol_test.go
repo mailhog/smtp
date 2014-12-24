@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ian-kent/Go-MailHog/data"
+	"github.com/mailhog/data"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
