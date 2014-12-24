@@ -3,6 +3,7 @@ package smtp
 // http://www.rfc-editor.org/rfc/rfc5321.txt
 
 import (
+	"encoding/base64"
 	"errors"
 	"log"
 	"regexp"
@@ -33,10 +34,10 @@ func ParseCommand(line string) *Command {
 
 // Protocol is a state machine representing an SMTP session
 type Protocol struct {
-	state   State
-	message *data.SMTPMessage
-
 	lastCommand *Command
+
+	State   State
+	Message *data.SMTPMessage
 
 	Hostname string
 	Ident    string
@@ -58,6 +59,14 @@ type Protocol struct {
 	// parameters are valid, otherwise false. If nil, all authentication
 	// attempts will be accepted.
 	ValidateAuthenticationHandler func(mechanism string, args ...string) (errorReply *Reply, ok bool)
+	// SMTPVerbFilter is called after each command is parsed, but before
+	// any code is executed. This provides an opportunity to reject unwanted verbs,
+	// e.g. to require AUTH before MAIL
+	SMTPVerbFilter func(verb string, args ...string) (errorReply *Reply)
+
+	// GetAuthenticationMechanismsHandler should return an array of strings
+	// listing accepted authentication mechanisms
+	GetAuthenticationMechanismsHandler func() []string
 
 	// RejectBrokenRCPTSyntax controls whether the protocol accepts technically
 	// invalid syntax for the RCPT command. Set to true, the RCPT syntax requires
@@ -73,8 +82,8 @@ type Protocol struct {
 // handler is called when a message is received and should return a message ID
 func NewProtocol() *Protocol {
 	return &Protocol{
-		state:    INVALID,
-		message:  &data.SMTPMessage{},
+		State:    INVALID,
+		Message:  &data.SMTPMessage{},
 		Hostname: "mailhog.example",
 		Ident:    "ESMTP Go-MailHog",
 	}
@@ -82,7 +91,7 @@ func NewProtocol() *Protocol {
 
 func (proto *Protocol) logf(message string, args ...interface{}) {
 	message = strings.Join([]string{"[PROTO: %s]", message}, " ")
-	args = append([]interface{}{StateMap[proto.state]}, args...)
+	args = append([]interface{}{StateMap[proto.State]}, args...)
 
 	if proto.LogHandler != nil {
 		proto.LogHandler(message, args...)
@@ -95,7 +104,7 @@ func (proto *Protocol) logf(message string, args ...interface{}) {
 // machine in ESTABLISH state.
 func (proto *Protocol) Start() *Reply {
 	proto.logf("Started session, switching to ESTABLISH state")
-	proto.state = ESTABLISH
+	proto.State = ESTABLISH
 	return ReplyIdent(proto.Hostname + " " + proto.Ident)
 }
 
@@ -115,7 +124,7 @@ func (proto *Protocol) Parse(line string) (string, *Reply) {
 	line = parts[1]
 
 	// TODO collapse AUTH states into separate processing
-	if proto.state == DATA {
+	if proto.State == DATA {
 		reply = proto.ProcessData(parts[0])
 	} else {
 		reply = proto.ProcessCommand(parts[0])
@@ -127,16 +136,16 @@ func (proto *Protocol) Parse(line string) (string, *Reply) {
 // ProcessData handles content received (with newlines stripped) while
 // in the SMTP DATA state
 func (proto *Protocol) ProcessData(line string) (reply *Reply) {
-	proto.message.Data += line + "\n"
+	proto.Message.Data += line + "\n"
 
-	if strings.HasSuffix(proto.message.Data, "\r\n.\r\n") {
-		proto.message.Data = strings.Replace(proto.message.Data, "\r\n..", "\r\n.", -1)
+	if strings.HasSuffix(proto.Message.Data, "\r\n.\r\n") {
+		proto.Message.Data = strings.Replace(proto.Message.Data, "\r\n..", "\r\n.", -1)
 
 		proto.logf("Got EOF, storing message and switching to MAIL state")
-		proto.message.Data = strings.TrimSuffix(proto.message.Data, "\r\n.\r\n")
-		proto.state = MAIL
+		proto.Message.Data = strings.TrimSuffix(proto.Message.Data, "\r\n.\r\n")
+		proto.State = MAIL
 
-		msg := proto.message.Parse(proto.Hostname)
+		msg := proto.Message.Parse(proto.Hostname)
 
 		if proto.MessageReceivedHandler == nil {
 			return ReplyStorageFailed("No storage backend")
@@ -162,7 +171,7 @@ func (proto *Protocol) ProcessCommand(line string) (reply *Reply) {
 	words := strings.Split(line, " ")
 	command := strings.ToUpper(words[0])
 	args := strings.Join(words[1:len(words)], " ")
-	proto.logf("In state %d, got command '%s', args '%s'", proto.state, command, args)
+	proto.logf("In state %d, got command '%s', args '%s'", proto.State, command, args)
 
 	cmd := ParseCommand(strings.TrimSuffix(line, "\r\n"))
 	return proto.Command(cmd)
@@ -173,20 +182,26 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 	defer func() {
 		proto.lastCommand = command
 	}()
+	if proto.SMTPVerbFilter != nil {
+		r := proto.SMTPVerbFilter(command.verb)
+		if r != nil {
+			return r
+		}
+	}
 	switch {
 	case "RSET" == command.verb:
 		proto.logf("Got RSET command, switching to MAIL state")
-		proto.state = MAIL
-		proto.message = &data.SMTPMessage{}
+		proto.State = MAIL
+		proto.Message = &data.SMTPMessage{}
 		return ReplyOk()
 	case "NOOP" == command.verb:
-		proto.logf("Got NOOP verb, staying in %s state", StateMap[proto.state])
+		proto.logf("Got NOOP verb, staying in %s state", StateMap[proto.State])
 		return ReplyOk()
 	case "QUIT" == command.verb:
-		proto.logf("Got QUIT verb, staying in %s state", StateMap[proto.state])
-		proto.state = DONE
+		proto.logf("Got QUIT verb, staying in %s state", StateMap[proto.State])
+		proto.State = DONE
 		return ReplyBye()
-	case ESTABLISH == proto.state:
+	case ESTABLISH == proto.State:
 		switch command.verb {
 		case "HELO":
 			return proto.HELO(command.args)
@@ -196,38 +211,48 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			proto.logf("Got unknown command for ESTABLISH state: '%s'", command.verb)
 			return ReplyUnrecognisedCommand()
 		}
-	case AUTHPLAIN == proto.state:
+	case AUTHPLAIN == proto.State:
 		proto.logf("Got PLAIN authentication response: '%s', switching to MAIL state", command.args)
-		proto.state = MAIL
+		proto.State = MAIL
 		if proto.ValidateAuthenticationHandler != nil {
-			if reply, ok := proto.ValidateAuthenticationHandler("PLAIN", command.orig); !ok {
+			// TODO error handling
+			val, _ := base64.StdEncoding.DecodeString(command.orig)
+			bits := strings.Split(string(val), string(rune(0)))
+
+			if len(bits) < 3 {
+				return ReplyError(errors.New("Badly formed parameter"))
+			}
+
+			user, pass := bits[1], bits[2]
+
+			if reply, ok := proto.ValidateAuthenticationHandler("PLAIN", user, pass); !ok {
 				return reply
 			}
 		}
 		return ReplyAuthOk()
-	case AUTHLOGIN == proto.state:
+	case AUTHLOGIN == proto.State:
 		proto.logf("Got LOGIN authentication response: '%s', switching to AUTHLOGIN2 state", command.args)
-		proto.state = AUTHLOGIN2
+		proto.State = AUTHLOGIN2
 		return ReplyAuthResponse("UGFzc3dvcmQ6")
-	case AUTHLOGIN2 == proto.state:
+	case AUTHLOGIN2 == proto.State:
 		proto.logf("Got LOGIN authentication response: '%s', switching to MAIL state", command.args)
-		proto.state = MAIL
+		proto.State = MAIL
 		if proto.ValidateAuthenticationHandler != nil {
 			if reply, ok := proto.ValidateAuthenticationHandler("LOGIN", proto.lastCommand.orig, command.orig); !ok {
 				return reply
 			}
 		}
 		return ReplyAuthOk()
-	case AUTHCRAMMD5 == proto.state:
+	case AUTHCRAMMD5 == proto.State:
 		proto.logf("Got CRAM-MD5 authentication response: '%s', switching to MAIL state", command.args)
-		proto.state = MAIL
+		proto.State = MAIL
 		if proto.ValidateAuthenticationHandler != nil {
 			if reply, ok := proto.ValidateAuthenticationHandler("CRAM-MD5", command.orig); !ok {
 				return reply
 			}
 		}
 		return ReplyAuthOk()
-	case MAIL == proto.state:
+	case MAIL == proto.State:
 		switch command.verb {
 		case "AUTH":
 			proto.logf("Got AUTH command, staying in MAIL state")
@@ -242,15 +267,15 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 				return ReplyAuthOk()
 			case "LOGIN" == command.args:
 				proto.logf("Got LOGIN authentication, switching to AUTH state")
-				proto.state = AUTHLOGIN
+				proto.State = AUTHLOGIN
 				return ReplyAuthResponse("VXNlcm5hbWU6")
 			case "PLAIN" == command.args:
 				proto.logf("Got PLAIN authentication (no args), switching to AUTH2 state")
-				proto.state = AUTHPLAIN
+				proto.State = AUTHPLAIN
 				return ReplyAuthResponse("")
 			case "CRAM-MD5" == command.args:
 				proto.logf("Got CRAM-MD5 authentication, switching to AUTH state")
-				proto.state = AUTHCRAMMD5
+				proto.State = AUTHCRAMMD5
 				return ReplyAuthResponse("PDQxOTI5NDIzNDEuMTI4Mjg0NzJAc291cmNlZm91ci5hbmRyZXcuY211LmVkdT4=")
 			case strings.HasPrefix(command.args, "EXTERNAL "):
 				proto.logf("Got EXTERNAL authentication: %s", strings.TrimPrefix(command.args, "EXTERNAL "))
@@ -275,8 +300,8 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 					return ReplyError(errors.New("Invalid sender " + from))
 				}
 			}
-			proto.message.From = from
-			proto.state = RCPT
+			proto.Message.From = from
+			proto.State = RCPT
 			return ReplySenderOk(from)
 		case "HELO":
 			return proto.HELO(command.args)
@@ -286,7 +311,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			proto.logf("Got unknown command for MAIL state: '%s'", command)
 			return ReplyUnrecognisedCommand()
 		}
-	case RCPT == proto.state:
+	case RCPT == proto.State:
 		switch command.verb {
 		case "RCPT":
 			proto.logf("Got RCPT command")
@@ -300,8 +325,8 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 					return ReplyError(errors.New("Invalid recipient " + to))
 				}
 			}
-			proto.message.To = append(proto.message.To, to)
-			proto.state = RCPT
+			proto.Message.To = append(proto.Message.To, to)
+			proto.State = RCPT
 			return ReplyRecipientOk(to)
 		case "HELO":
 			return proto.HELO(command.args)
@@ -309,7 +334,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			return proto.EHLO(command.args)
 		case "DATA":
 			proto.logf("Got DATA command, switching to DATA state")
-			proto.state = DATA
+			proto.State = DATA
 			return ReplyDataResponse()
 		default:
 			proto.logf("Got unknown command for RCPT state: '%s'", command)
@@ -323,17 +348,25 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 // HELO creates a reply to a HELO command
 func (proto *Protocol) HELO(args string) (reply *Reply) {
 	proto.logf("Got HELO command, switching to MAIL state")
-	proto.state = MAIL
-	proto.message.Helo = args
+	proto.State = MAIL
+	proto.Message.Helo = args
 	return ReplyOk("Hello " + args)
 }
 
 // EHLO creates a reply to a EHLO command
 func (proto *Protocol) EHLO(args string) (reply *Reply) {
 	proto.logf("Got EHLO command, switching to MAIL state")
-	proto.state = MAIL
-	proto.message.Helo = args
-	return ReplyOk("Hello "+args, "PIPELINING", "AUTH EXTERNAL CRAM-MD5 LOGIN PLAIN")
+	proto.State = MAIL
+	proto.Message.Helo = args
+	replyArgs := []string{"Hello " + args, "PIPELINING"}
+
+	if proto.GetAuthenticationMechanismsHandler != nil {
+		mechanisms := proto.GetAuthenticationMechanismsHandler()
+		if len(mechanisms) > 0 {
+			replyArgs = append(replyArgs, "AUTH "+strings.Join(mechanisms, " "))
+		}
+	}
+	return ReplyOk(replyArgs...)
 }
 
 var parseMailBrokenRegexp = regexp.MustCompile("(?i:From):\\s*<([^>]+)>")

@@ -75,5 +75,8 @@ func ReplyUnsupportedAuth() *Reply {
 	return &Reply{504, []string{"Unsupported authentication mechanism"}}
 }
 
+// ReplyInvalidAuth creates a 535 error reply
+func ReplyInvalidAuth() *Reply { return &Reply{535, []string{"Authentication credentials invalid"}} }
+
 // ReplyError creates a 500 error reply
 func ReplyError(err error) *Reply { return &Reply{550, []string{err.Error()}} }
