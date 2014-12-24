@@ -15,6 +15,6 @@ reply = proto.ProcessCommand("EHLO localhost")
 
 ### Licence
 
-Copyright ©‎ 2014, Ian Kent (http://www.iankent.eu).
+Copyright ©‎ 2014, Ian Kent (http://iankent.uk)
 
 Released under MIT license, see [LICENSE](LICENSE.md) for details.
