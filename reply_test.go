@@ -10,20 +10,20 @@ import (
 
 func TestReply(t *testing.T) {
 	Convey("Reply creates properly formatted responses", t, func() {
-		r := &Reply{200, []string{}}
+		r := &Reply{200, []string{}, nil}
 		l := r.Lines()
 		So(l[0], ShouldEqual, "200\n")
 
-		r = &Reply{200, []string{"Ok"}}
+		r = &Reply{200, []string{"Ok"}, nil}
 		l = r.Lines()
 		So(l[0], ShouldEqual, "200 Ok\n")
 
-		r = &Reply{200, []string{"Ok", "Still ok!"}}
+		r = &Reply{200, []string{"Ok", "Still ok!"}, nil}
 		l = r.Lines()
 		So(l[0], ShouldEqual, "200-Ok\n")
 		So(l[1], ShouldEqual, "200 Still ok!\n")
 
-		r = &Reply{200, []string{"Ok", "Still ok!", "OINK!"}}
+		r = &Reply{200, []string{"Ok", "Still ok!", "OINK!"}, nil}
 		l = r.Lines()
 		So(l[0], ShouldEqual, "200-Ok\n")
 		So(l[1], ShouldEqual, "200-Still ok!\n")

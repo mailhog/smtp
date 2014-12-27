@@ -36,6 +36,9 @@ func ParseCommand(line string) *Command {
 type Protocol struct {
 	lastCommand *Command
 
+	TLSPending  bool
+	TLSUpgraded bool
+
 	State   State
 	Message *data.SMTPMessage
 
@@ -63,6 +66,16 @@ type Protocol struct {
 	// any code is executed. This provides an opportunity to reject unwanted verbs,
 	// e.g. to require AUTH before MAIL
 	SMTPVerbFilter func(verb string, args ...string) (errorReply *Reply)
+	// TLSHandler is called when a STARTTLS command is received.
+	//
+	// It should acknowledge the TLS request and set ok to true.
+	// It should also return a callback which will be invoked after the reply is
+	// sent. E.g., a TCP connection can only perform the upgrade after sending the reply
+	//
+	// Once the upgrade is complete, invoke the done function (e.g., from the returned callback)
+	//
+	// If TLS upgrade isn't possible, return an errorReply and set ok to false.
+	TLSHandler func(done func(ok bool)) (errorReply *Reply, callback func(), ok bool)
 
 	// GetAuthenticationMechanismsHandler should return an array of strings
 	// listing accepted authentication mechanisms
@@ -76,6 +89,9 @@ type Protocol struct {
 	// invalid syntax for the MAIL command. Set to true, the MAIL syntax requires
 	// no space between `FROM:` and the opening `<`
 	RejectBrokenMAILSyntax bool
+	// RequireTLS controls whether TLS is required for a connection before other
+	// commands can be issued, applied at the protocol layer.
+	RequireTLS bool
 }
 
 // NewProtocol returns a new SMTP state machine in INVALID state
@@ -189,6 +205,10 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		}
 	}
 	switch {
+	case proto.TLSPending && !proto.TLSUpgraded:
+		proto.logf("Got command before TLS upgrade complete")
+		// FIXME what to do?
+		return ReplyBye()
 	case "RSET" == command.verb:
 		proto.logf("Got RSET command, switching to MAIL state")
 		proto.State = MAIL
@@ -207,10 +227,14 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			return proto.HELO(command.args)
 		case "EHLO":
 			return proto.EHLO(command.args)
+		case "STARTTLS":
+			return proto.STARTTLS(command.args)
 		default:
 			proto.logf("Got unknown command for ESTABLISH state: '%s'", command.verb)
 			return ReplyUnrecognisedCommand()
 		}
+	case "STARTTLS" == command.verb:
+		return proto.STARTTLS(command.args)
 	case AUTHPLAIN == proto.State:
 		proto.logf("Got PLAIN authentication response: '%s', switching to MAIL state", command.args)
 		proto.State = MAIL
@@ -360,13 +384,38 @@ func (proto *Protocol) EHLO(args string) (reply *Reply) {
 	proto.Message.Helo = args
 	replyArgs := []string{"Hello " + args, "PIPELINING"}
 
-	if proto.GetAuthenticationMechanismsHandler != nil {
-		mechanisms := proto.GetAuthenticationMechanismsHandler()
-		if len(mechanisms) > 0 {
-			replyArgs = append(replyArgs, "AUTH "+strings.Join(mechanisms, " "))
+	if proto.TLSHandler != nil && !proto.TLSPending && !proto.TLSUpgraded {
+		replyArgs = append(replyArgs, "STARTTLS")
+	}
+
+	if !proto.RequireTLS || proto.TLSUpgraded {
+		if proto.GetAuthenticationMechanismsHandler != nil {
+			mechanisms := proto.GetAuthenticationMechanismsHandler()
+			if len(mechanisms) > 0 {
+				replyArgs = append(replyArgs, "AUTH "+strings.Join(mechanisms, " "))
+			}
 		}
 	}
 	return ReplyOk(replyArgs...)
+}
+
+// STARTTLS creates a reply to a STARTTLS command
+func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
+	if proto.TLSHandler == nil {
+		return ReplyUnrecognisedCommand()
+	}
+	if len(args) > 0 {
+		return ReplySyntaxError("no parameters allowed")
+	}
+	r, callback, ok := proto.TLSHandler(func(ok bool) {
+		proto.TLSUpgraded = ok
+		proto.TLSPending = ok
+	})
+	if !ok {
+		return r
+	}
+	proto.TLSPending = true
+	return ReplyReadyToStartTLS(callback)
 }
 
 var parseMailBrokenRegexp = regexp.MustCompile("(?i:From):\\s*<([^>]+)>")
