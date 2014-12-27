@@ -3,8 +3,11 @@ MailHog SMTP Protocol [![GoDoc](https://godoc.org/github.com/mailhog/smtp?status
 
 `github.com/mailhog/smtp` implements an SMTP server state machine.
 
-  * ESMTP server implementing RFC5321
-  * Support for SMTP AUTH (RFC4954) and PIPELINING (RFC2920)
+  * ESMTP server implementing [RFC5321](http://tools.ietf.org/html/rfc5321)
+  * Support for:
+    * AUTH [RFC4954](http://tools.ietf.org/html/rfc4954)
+    * PIPELINING [RFC2920](http://tools.ietf.org/html/rfc2920)
+    * STARTTLS [RFC3207](http://tools.ietf.org/html/rfc3207)
 
 ```go
 proto := NewProtocol()
