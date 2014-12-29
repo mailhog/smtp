@@ -97,12 +97,16 @@ type Protocol struct {
 // NewProtocol returns a new SMTP state machine in INVALID state
 // handler is called when a message is received and should return a message ID
 func NewProtocol() *Protocol {
-	return &Protocol{
-		State:    INVALID,
-		Message:  &data.SMTPMessage{},
-		Hostname: "mailhog.example",
-		Ident:    "ESMTP Go-MailHog",
-	}
+	p := &Protocol{}
+	p.resetState()
+	return p
+}
+
+func (proto *Protocol) resetState() {
+	proto.State = INVALID
+	proto.Message = &data.SMTPMessage{}
+	proto.Hostname = "mailhog.example"
+	proto.Ident = "ESMTP Go-MailHog"
 }
 
 func (proto *Protocol) logf(message string, args ...interface{}) {
@@ -410,6 +414,9 @@ func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
 	r, callback, ok := proto.TLSHandler(func(ok bool) {
 		proto.TLSUpgraded = ok
 		proto.TLSPending = ok
+		if ok {
+			proto.resetState()
+		}
 	})
 	if !ok {
 		return r
