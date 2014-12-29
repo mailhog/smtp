@@ -19,6 +19,8 @@ reply = proto.ProcessCommand("EHLO localhost")
 // ...
 ```
 
+See [MailHog-Server](https://github.com/mailhog/MailHog-Server) and [MailHog-MTA](https://github.com/mailhog/MailHog-MTA) for example implementations.
+
 ### Commands and replies
 
 Interaction with the state machine is via:
