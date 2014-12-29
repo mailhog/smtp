@@ -16,7 +16,7 @@ func TestProtocol(t *testing.T) {
 		So(proto, ShouldNotBeNil)
 		So(proto, ShouldHaveSameTypeAs, &Protocol{})
 		So(proto.Hostname, ShouldEqual, "mailhog.example")
-		So(proto.Ident, ShouldEqual, "ESMTP Go-MailHog")
+		So(proto.Ident, ShouldEqual, "ESMTP MailHog")
 		So(proto.State, ShouldEqual, INVALID)
 		So(proto.Message, ShouldNotBeNil)
 		So(proto.Message, ShouldHaveSameTypeAs, &data.SMTPMessage{})
@@ -45,17 +45,17 @@ func TestProtocol(t *testing.T) {
 		So(reply, ShouldNotBeNil)
 		So(reply, ShouldHaveSameTypeAs, &Reply{})
 		So(reply.Status, ShouldEqual, 220)
-		So(reply.Lines(), ShouldResemble, []string{"220 mailhog.example ESMTP Go-MailHog\r\n"})
+		So(reply.Lines(), ShouldResemble, []string{"220 mailhog.example ESMTP MailHog\r\n"})
 	})
 
 	Convey("Modifying the hostname should modify the ident reply", t, func() {
 		proto := NewProtocol()
-		proto.Ident = "OinkSMTP Go-MailHog"
+		proto.Ident = "OinkSMTP MailHog"
 		reply := proto.Start()
 		So(reply, ShouldNotBeNil)
 		So(reply, ShouldHaveSameTypeAs, &Reply{})
 		So(reply.Status, ShouldEqual, 220)
-		So(reply.Lines(), ShouldResemble, []string{"220 mailhog.example OinkSMTP Go-MailHog\r\n"})
+		So(reply.Lines(), ShouldResemble, []string{"220 mailhog.example OinkSMTP MailHog\r\n"})
 	})
 
 	Convey("Modifying the ident should modify the ident reply", t, func() {
@@ -65,7 +65,7 @@ func TestProtocol(t *testing.T) {
 		So(reply, ShouldNotBeNil)
 		So(reply, ShouldHaveSameTypeAs, &Reply{})
 		So(reply.Status, ShouldEqual, 220)
-		So(reply.Lines(), ShouldResemble, []string{"220 oink.oink ESMTP Go-MailHog\r\n"})
+		So(reply.Lines(), ShouldResemble, []string{"220 oink.oink ESMTP MailHog\r\n"})
 	})
 }
 

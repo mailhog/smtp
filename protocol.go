@@ -45,6 +45,9 @@ type Protocol struct {
 	Hostname string
 	Ident    string
 
+	MaximumLineLength int
+	MaximumRecipients int
+
 	// LogHandler is called for each log message. If nil, log messages will
 	// be output using log.Printf instead.
 	LogHandler func(message string, args ...interface{})
@@ -97,16 +100,19 @@ type Protocol struct {
 // NewProtocol returns a new SMTP state machine in INVALID state
 // handler is called when a message is received and should return a message ID
 func NewProtocol() *Protocol {
-	p := &Protocol{}
+	p := &Protocol{
+		Hostname:          "mailhog.example",
+		Ident:             "ESMTP MailHog",
+		State:             INVALID,
+		MaximumLineLength: -1,
+		MaximumRecipients: -1,
+	}
 	p.resetState()
 	return p
 }
 
 func (proto *Protocol) resetState() {
-	proto.State = INVALID
 	proto.Message = &data.SMTPMessage{}
-	proto.Hostname = "mailhog.example"
-	proto.Ident = "ESMTP Go-MailHog"
 }
 
 func (proto *Protocol) logf(message string, args ...interface{}) {
@@ -142,6 +148,12 @@ func (proto *Protocol) Parse(line string) (string, *Reply) {
 
 	parts := strings.SplitN(line, "\r\n", 2)
 	line = parts[1]
+
+	if proto.MaximumLineLength > -1 {
+		if len(parts[0]) > proto.MaximumLineLength {
+			return line, ReplyLineTooLong()
+		}
+	}
 
 	// TODO collapse AUTH states into separate processing
 	if proto.State == DATA {
@@ -346,6 +358,9 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		switch command.verb {
 		case "RCPT":
 			proto.logf("Got RCPT command")
+			if proto.MaximumRecipients > -1 && len(proto.Message.To) >= proto.MaximumRecipients {
+				return ReplyTooManyRecipients()
+			}
 			to, err := proto.ParseRCPT(command.args)
 			if err != nil {
 				return ReplyError(err)

@@ -78,6 +78,9 @@ func ReplyStorageFailed(reason string) *Reply { return &Reply{452, []string{reas
 // ReplyUnrecognisedCommand creates a 500 Unrecognised command reply
 func ReplyUnrecognisedCommand() *Reply { return &Reply{500, []string{"Unrecognised command"}, nil} }
 
+// ReplyLineTooLong creates a 500 Line too long reply
+func ReplyLineTooLong() *Reply { return &Reply{500, []string{"Line too long"}, nil} }
+
 // ReplySyntaxError creates a 501 Syntax error reply
 func ReplySyntaxError(response string) *Reply {
 	if len(response) > 0 {
@@ -103,3 +106,6 @@ func ReplyInvalidAuth() *Reply {
 
 // ReplyError creates a 500 error reply
 func ReplyError(err error) *Reply { return &Reply{550, []string{err.Error()}, nil} }
+
+// ReplyTooManyRecipients creates a 552 too many recipients reply
+func ReplyTooManyRecipients() *Reply { return &Reply{552, []string{"Too many recipients"}, nil} }

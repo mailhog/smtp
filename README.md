@@ -81,7 +81,7 @@ See [![GoDoc](https://godoc.org/github.com/mailhog/smtp?status.svg)](https://god
 
 ### Behaviour flags
 
-The state machine also exports boolean variables to control its behaviour:
+The state machine also exports variables to control its behaviour:
 
 See [![GoDoc](https://godoc.org/github.com/mailhog/smtp?status.svg)](https://godoc.org/github.com/mailhog/smtp) for more information.
 
@@ -90,6 +90,8 @@ See [![GoDoc](https://godoc.org/github.com/mailhog/smtp?status.svg)](https://god
 | RejectBrokenRCPTSyntax | Reject non-conforming RCPT syntax
 | RejectBrokenMAILSyntax | Reject non-conforming MAIL syntax
 | RequireTLS             | Require STARTTLS before other commands
+| MaximumRecipients      | Maximum recipients per message
+| MaximumLineLength      | Maximum length of SMTP line
 
 ### Licence
 
