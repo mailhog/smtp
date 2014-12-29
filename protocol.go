@@ -239,6 +239,9 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		}
 	case "STARTTLS" == command.verb:
 		return proto.STARTTLS(command.args)
+	case proto.RequireTLS && !proto.TLSUpgraded:
+		proto.logf("RequireTLS set and not TLS not upgraded")
+		return ReplyMustIssueSTARTTLSFirst()
 	case AUTHPLAIN == proto.State:
 		proto.logf("Got PLAIN authentication response: '%s', switching to MAIL state", command.args)
 		proto.State = MAIL
