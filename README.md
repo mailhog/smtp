@@ -66,15 +66,15 @@ The state machine provides hooks to manipulate its behaviour.
 
 See [![GoDoc](https://godoc.org/github.com/mailhog/smtp?status.svg)](https://godoc.org/github.com/mailhog/smtp) for more information.
 
-| Hook | Description
-|-
-| LogHandler | Called for every log message
-| MessageReceivedHandler | Called for each message received
-| ValidateSenderHandler | Called after MAIL FROM
-| ValidateRecipientHandler | Called after RCPT TO
-| ValidateAuthenticationHandler | Called after AUTH
-| SMTPVerbFilter | Called for every SMTP command processed
-| TLSHandler | Callback mashup called after STARTTLS
+| Hook                               | Description
+| ---------------------------------- | -----------
+| LogHandler                         | Called for every log message
+| MessageReceivedHandler             | Called for each message received
+| ValidateSenderHandler              | Called after MAIL FROM
+| ValidateRecipientHandler           | Called after RCPT TO
+| ValidateAuthenticationHandler      | Called after AUTH
+| SMTPVerbFilter                     | Called for every SMTP command processed
+| TLSHandler                         | Callback mashup called after STARTTLS
 | GetAuthenticationMechanismsHandler | Called for each EHLO command
 
 ### Behaviour flags
@@ -83,11 +83,11 @@ The state machine also exports boolean variables to control its behaviour:
 
 See [![GoDoc](https://godoc.org/github.com/mailhog/smtp?status.svg)](https://godoc.org/github.com/mailhog/smtp) for more information.
 
-| Variable | Description
-|-
+| Variable               | Description
+| ---------------------- | -----------
 | RejectBrokenRCPTSyntax | Reject non-conforming RCPT syntax
 | RejectBrokenMAILSyntax | Reject non-conforming MAIL syntax
-| RequireTLS | Require STARTTLS before other commands
+| RequireTLS             | Require STARTTLS before other commands
 
 ### Licence
 
