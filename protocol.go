@@ -416,6 +416,7 @@ func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
 		proto.TLSPending = ok
 		if ok {
 			proto.resetState()
+			proto.State = ESTABLISH
 		}
 	})
 	if !ok {
