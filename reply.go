@@ -24,9 +24,9 @@ func (r Reply) Lines() []string {
 	for i, line := range r.lines {
 		l := ""
 		if i == len(r.lines)-1 {
-			l = strconv.Itoa(r.Status) + " " + line + "\n"
+			l = strconv.Itoa(r.Status) + " " + line + "\r\n"
 		} else {
-			l = strconv.Itoa(r.Status) + "-" + line + "\n"
+			l = strconv.Itoa(r.Status) + "-" + line + "\r\n"
 		}
 		lines = append(lines, l)
 	}

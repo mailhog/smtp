@@ -16,18 +16,18 @@ func TestReply(t *testing.T) {
 
 		r = &Reply{200, []string{"Ok"}, nil}
 		l = r.Lines()
-		So(l[0], ShouldEqual, "200 Ok\n")
+		So(l[0], ShouldEqual, "200 Ok\r\n")
 
 		r = &Reply{200, []string{"Ok", "Still ok!"}, nil}
 		l = r.Lines()
-		So(l[0], ShouldEqual, "200-Ok\n")
-		So(l[1], ShouldEqual, "200 Still ok!\n")
+		So(l[0], ShouldEqual, "200-Ok\r\n")
+		So(l[1], ShouldEqual, "200 Still ok!\r\n")
 
 		r = &Reply{200, []string{"Ok", "Still ok!", "OINK!"}, nil}
 		l = r.Lines()
-		So(l[0], ShouldEqual, "200-Ok\n")
-		So(l[1], ShouldEqual, "200-Still ok!\n")
-		So(l[2], ShouldEqual, "200 OINK!\n")
+		So(l[0], ShouldEqual, "200-Ok\r\n")
+		So(l[1], ShouldEqual, "200-Still ok!\r\n")
+		So(l[2], ShouldEqual, "200 OINK!\r\n")
 	})
 }
 

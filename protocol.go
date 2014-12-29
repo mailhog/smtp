@@ -132,11 +132,11 @@ func (proto *Protocol) Start() *Reply {
 func (proto *Protocol) Parse(line string) (string, *Reply) {
 	var reply *Reply
 
-	if !strings.Contains(line, "\n") {
+	if !strings.Contains(line, "\r\n") {
 		return line, reply
 	}
 
-	parts := strings.SplitN(line, "\n", 2)
+	parts := strings.SplitN(line, "\r\n", 2)
 	line = parts[1]
 
 	// TODO collapse AUTH states into separate processing
@@ -152,7 +152,7 @@ func (proto *Protocol) Parse(line string) (string, *Reply) {
 // ProcessData handles content received (with newlines stripped) while
 // in the SMTP DATA state
 func (proto *Protocol) ProcessData(line string) (reply *Reply) {
-	proto.Message.Data += line + "\n"
+	proto.Message.Data += line + "\r\n"
 
 	if strings.HasSuffix(proto.Message.Data, "\r\n.\r\n") {
 		proto.Message.Data = strings.Replace(proto.Message.Data, "\r\n..", "\r\n.", -1)
