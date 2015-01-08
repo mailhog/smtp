@@ -179,6 +179,8 @@ func (proto *Protocol) ProcessData(line string) (reply *Reply) {
 
 		msg := proto.Message.Parse(proto.Hostname)
 
+		defer proto.resetState()
+
 		if proto.MessageReceivedHandler == nil {
 			return ReplyStorageFailed("No storage backend")
 		}
