@@ -217,8 +217,10 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		proto.lastCommand = command
 	}()
 	if proto.SMTPVerbFilter != nil {
+		proto.logf("sending to SMTP verb filter")
 		r := proto.SMTPVerbFilter(command.verb)
 		if r != nil {
+			proto.logf("response returned by SMTP verb filter")
 			return r
 		}
 	}
@@ -240,6 +242,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		proto.State = DONE
 		return ReplyBye()
 	case ESTABLISH == proto.State:
+		proto.logf("In ESTABLISH state")
 		switch command.verb {
 		case "HELO":
 			return proto.HELO(command.args)
@@ -252,6 +255,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			return ReplyUnrecognisedCommand()
 		}
 	case "STARTTLS" == command.verb:
+		proto.logf("Got STARTTLS command outside ESTABLISH state")
 		return proto.STARTTLS(command.args)
 	case proto.RequireTLS && !proto.TLSUpgraded:
 		proto.logf("RequireTLS set and not TLS not upgraded")
@@ -298,6 +302,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		}
 		return ReplyAuthOk()
 	case MAIL == proto.State:
+		proto.logf("In MAIL state")
 		switch command.verb {
 		case "AUTH":
 			proto.logf("Got AUTH command, staying in MAIL state")
@@ -305,7 +310,16 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			case strings.HasPrefix(command.args, "PLAIN "):
 				proto.logf("Got PLAIN authentication: %s", strings.TrimPrefix(command.args, "PLAIN "))
 				if proto.ValidateAuthenticationHandler != nil {
-					if reply, ok := proto.ValidateAuthenticationHandler("PLAIN", strings.TrimPrefix(command.args, "PLAIN ")); !ok {
+					val, _ := base64.StdEncoding.DecodeString(strings.TrimPrefix(command.args, "PLAIN "))
+					bits := strings.Split(string(val), string(rune(0)))
+
+					if len(bits) < 3 {
+						return ReplyError(errors.New("Badly formed parameter"))
+					}
+
+					user, pass := bits[1], bits[2]
+
+					if reply, ok := proto.ValidateAuthenticationHandler("PLAIN", user, pass); !ok {
 						return reply
 					}
 				}
@@ -357,6 +371,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			return ReplyUnrecognisedCommand()
 		}
 	case RCPT == proto.State:
+		proto.logf("In RCPT state")
 		switch command.verb {
 		case "RCPT":
 			proto.logf("Got RCPT command")
@@ -389,6 +404,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			return ReplyUnrecognisedCommand()
 		}
 	default:
+		proto.logf("Command not recognised")
 		return ReplyUnrecognisedCommand()
 	}
 }
@@ -426,6 +442,7 @@ func (proto *Protocol) EHLO(args string) (reply *Reply) {
 // STARTTLS creates a reply to a STARTTLS command
 func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
 	if proto.TLSHandler == nil {
+		proto.logf("tls handler not found")
 		return ReplyUnrecognisedCommand()
 	}
 	if len(args) > 0 {
