@@ -126,23 +126,37 @@ func TestParse(t *testing.T) {
 		proto.Command(ParseCommand("DATA"))
 		So(proto.State, ShouldEqual, DATA)
 
-		line, reply := proto.Parse("Hi\r\n")
+		// FIXME this test relies on mailhog/data, it shouldn't!
+
+		line, reply := proto.Parse("Content-Type: text/plain;\r\n")
 		So(proto.State, ShouldEqual, DATA)
 		So(line, ShouldEqual, "")
-		So(proto.Message.Data, ShouldEqual, "Hi\r\n")
+		So(proto.Message.Data, ShouldEqual, "Content-Type: text/plain;\r\n")
 		So(reply, ShouldBeNil)
 
 		line, reply = proto.Parse("\r\n")
 		So(proto.State, ShouldEqual, DATA)
 		So(line, ShouldEqual, "")
-		So(proto.Message.Data, ShouldEqual, "Hi\r\n\r\n")
+		So(proto.Message.Data, ShouldEqual, "Content-Type: text/plain;\r\n\r\n")
+		So(reply, ShouldBeNil)
+
+		line, reply = proto.Parse("Hi\r\n")
+		So(proto.State, ShouldEqual, DATA)
+		So(line, ShouldEqual, "")
+		So(proto.Message.Data, ShouldEqual, "Content-Type: text/plain;\r\n\r\nHi\r\n")
+		So(reply, ShouldBeNil)
+
+		line, reply = proto.Parse("\r\n")
+		So(proto.State, ShouldEqual, DATA)
+		So(line, ShouldEqual, "")
+		So(proto.Message.Data, ShouldEqual, "Content-Type: text/plain;\r\n\r\nHi\r\n\r\n")
 		So(reply, ShouldBeNil)
 
 		line, reply = proto.Parse(".\r\n")
 		So(proto.State, ShouldEqual, MAIL)
 		So(line, ShouldEqual, "")
 		So(reply, ShouldNotBeNil)
-		So(proto.Message.Data, ShouldEqual, "Hi\r\n")
+		So(proto.Message.Data, ShouldEqual, "")
 	})
 }
 
@@ -752,13 +766,14 @@ func TestAuthPlain(t *testing.T) {
 		proto.ValidateAuthenticationHandler = func(mechanism string, args ...string) (*Reply, bool) {
 			handlerCalled = true
 			So(mechanism, ShouldEqual, "PLAIN")
-			So(len(args), ShouldEqual, 1)
-			So(args[0], ShouldEqual, "oink!")
+			So(len(args), ShouldEqual, 2)
+			So(args[0], ShouldEqual, "test@mailhog.example")
+			So(args[1], ShouldEqual, "test")
 			return nil, true
 		}
 		proto.Start()
 		proto.Command(ParseCommand("EHLO localhost"))
-		reply := proto.Command(ParseCommand("AUTH PLAIN oink!"))
+		reply := proto.Command(ParseCommand("AUTH PLAIN AHRlc3RAbWFpbGhvZy5leGFtcGxlAHRlc3Q="))
 		So(reply, ShouldNotBeNil)
 		So(reply.Status, ShouldEqual, 235)
 		So(reply.Lines(), ShouldResemble, []string{"235 Authentication successful\r\n"})
@@ -777,8 +792,8 @@ func TestAuthPlain(t *testing.T) {
 		reply := proto.Command(ParseCommand("AUTH PLAIN oink!"))
 		So(reply, ShouldNotBeNil)
 		So(reply.Status, ShouldEqual, 550)
-		So(reply.Lines(), ShouldResemble, []string{"550 OINK :(\r\n"})
-		So(handlerCalled, ShouldBeTrue)
+		So(reply.Lines(), ShouldResemble, []string{"550 Badly formed parameter\r\n"})
+		So(handlerCalled, ShouldBeFalse)
 	})
 
 	Convey("Two part AUTH PLAIN should call ValidateAuthenticationHandler", t, func() {
