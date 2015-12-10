@@ -54,7 +54,7 @@ type Protocol struct {
 	// MessageReceivedHandler is called for each message accepted by the
 	// SMTP protocol. It must return a MessageID or error. If nil, messages
 	// will be rejected with an error.
-	MessageReceivedHandler func(*data.Message) (string, error)
+	MessageReceivedHandler func(*data.SMTPMessage) (string, error)
 	// ValidateSenderHandler should return true if the sender is valid,
 	// otherwise false. If nil, all senders will be accepted.
 	ValidateSenderHandler func(from string) bool
@@ -177,15 +177,13 @@ func (proto *Protocol) ProcessData(line string) (reply *Reply) {
 		proto.Message.Data = strings.TrimSuffix(proto.Message.Data, "\r\n.\r\n")
 		proto.State = MAIL
 
-		msg := proto.Message.Parse(proto.Hostname)
-
 		defer proto.resetState()
 
 		if proto.MessageReceivedHandler == nil {
 			return ReplyStorageFailed("No storage backend")
 		}
 
-		id, err := proto.MessageReceivedHandler(msg)
+		id, err := proto.MessageReceivedHandler(proto.Message)
 		if err != nil {
 			proto.logf("Error storing message: %s", err)
 			return ReplyStorageFailed("Unable to store message")
@@ -441,13 +439,19 @@ func (proto *Protocol) EHLO(args string) (reply *Reply) {
 
 // STARTTLS creates a reply to a STARTTLS command
 func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
+	if proto.TLSUpgraded {
+		return ReplyUnrecognisedCommand()
+	}
+
 	if proto.TLSHandler == nil {
 		proto.logf("tls handler not found")
 		return ReplyUnrecognisedCommand()
 	}
+
 	if len(args) > 0 {
 		return ReplySyntaxError("no parameters allowed")
 	}
+
 	r, callback, ok := proto.TLSHandler(func(ok bool) {
 		proto.TLSUpgraded = ok
 		proto.TLSPending = ok
@@ -459,6 +463,7 @@ func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
 	if !ok {
 		return r
 	}
+
 	proto.TLSPending = true
 	return ReplyReadyToStartTLS(callback)
 }

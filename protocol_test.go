@@ -383,7 +383,7 @@ func TestDATA(t *testing.T) {
 	Convey("DATA should accept data", t, func() {
 		proto := NewProtocol()
 		handlerCalled := false
-		proto.MessageReceivedHandler = func(msg *data.Message) (string, error) {
+		proto.MessageReceivedHandler = func(msg *data.SMTPMessage) (string, error) {
 			handlerCalled = true
 			return "abc", nil
 		}
@@ -439,7 +439,7 @@ func TestDATA(t *testing.T) {
 	Convey("Should return error if storage backend fails", t, func() {
 		proto := NewProtocol()
 		handlerCalled := false
-		proto.MessageReceivedHandler = func(msg *data.Message) (string, error) {
+		proto.MessageReceivedHandler = func(msg *data.SMTPMessage) (string, error) {
 			handlerCalled = true
 			return "", errors.New("abc")
 		}
