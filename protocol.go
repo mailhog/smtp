@@ -34,7 +34,8 @@ func ParseCommand(line string) *Command {
 
 // Protocol is a state machine representing an SMTP session
 type Protocol struct {
-	lastCommand *Command
+	lastCommand    *Command
+	isExtendedSMTP bool
 
 	TLSPending  bool
 	TLSUpgraded bool
@@ -71,11 +72,13 @@ type Protocol struct {
 	SMTPVerbFilter func(verb string, args ...string) (errorReply *Reply)
 	// Extensions is a slice of Extension. Each registered extension is included in
 	// the EHLO response. When a command is called, if the SMTPVerbFilter doesn't
-	// retry a *Reply, the Process method on each Extension will be called, in order, until all extensions have been called or
-	// one returns a *Reply.
+	// retry a *Reply, the Process method on each Extension will be called, in
+	// order, until all extensions have been called or one returns a *Reply.
 	Extensions []Extension
-	// ExtensionData allows extensions to have storage for this session. Extensions should take care
-	// to us an unexported type as the key to avoid colissions (similar to keys for context.Context).
+	// ExtensionData allows extensions to have storage for this session.
+	//
+	// Extensions should take care to use an unexported type as the key to avoid
+	// colissions (similar to keys for context.Context).
 	ExtensionData map[interface{}]interface{}
 	// TLSHandler is called when a STARTTLS command is received.
 	//
@@ -115,7 +118,6 @@ func NewProtocol() *Protocol {
 		MaximumLineLength: -1,
 		MaximumRecipients: -1,
 		Extensions:        []Extension{&smtpUTF8{}},
-		ExtensionData:     make(map[interface{}]interface{}),
 	}
 	p.resetState()
 	return p
@@ -123,6 +125,7 @@ func NewProtocol() *Protocol {
 
 func (proto *Protocol) resetState() {
 	proto.Message = &data.SMTPMessage{}
+	proto.ExtensionData = make(map[interface{}]interface{})
 }
 
 func (proto *Protocol) logf(message string, args ...interface{}) {
@@ -232,7 +235,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 			return r
 		}
 	}
-	if proto.Message.IsEHLO {
+	if proto.isExtendedSMTP {
 		for _, ext := range proto.Extensions {
 			if proto.TLSUpgraded || !ext.TLSOnly() {
 				proto.logf("sending to extension %s (%T)", ext.EHLOKeyword(), ext)
@@ -251,8 +254,8 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		return ReplyBye()
 	case "RSET" == command.verb:
 		proto.logf("Got RSET command, switching to MAIL state")
+		proto.resetState()
 		proto.State = MAIL
-		proto.Message = &data.SMTPMessage{}
 		return ReplyOk()
 	case "NOOP" == command.verb:
 		proto.logf("Got NOOP verb, staying in %s state", StateMap[proto.State])
@@ -434,7 +437,7 @@ func (proto *Protocol) HELO(args string) (reply *Reply) {
 	proto.logf("Got HELO command, switching to MAIL state")
 	proto.State = MAIL
 	proto.Message.Helo = args
-	proto.Message.IsEHLO = false
+	proto.isExtendedSMTP = false
 	return ReplyOk("Hello " + args)
 }
 
@@ -443,7 +446,7 @@ func (proto *Protocol) EHLO(args string) (reply *Reply) {
 	proto.logf("Got EHLO command, switching to MAIL state")
 	proto.State = MAIL
 	proto.Message.Helo = args
-	proto.Message.IsEHLO = true
+	proto.isExtendedSMTP = true
 	replyArgs := []string{"Hello " + args, "PIPELINING"}
 
 	if proto.TLSHandler != nil && !proto.TLSPending && !proto.TLSUpgraded {
@@ -488,6 +491,7 @@ func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
 		proto.TLSPending = ok
 		if ok {
 			proto.resetState()
+			proto.isExtendedSMTP = false
 			proto.State = ESTABLISH
 		}
 	})
