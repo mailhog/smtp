@@ -485,6 +485,7 @@ func TestRSET(t *testing.T) {
 		So(reply.Status, ShouldEqual, 250)
 		So(reply.Lines(), ShouldResemble, []string{"250 Ok\r\n"})
 		So(proto.State, ShouldEqual, MAIL)
+		So(proto.Message.Helo, ShouldEqual, "localhost")
 		So(proto.Message.From, ShouldEqual, "")
 		So(len(proto.Message.To), ShouldEqual, 0)
 	})

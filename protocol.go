@@ -229,8 +229,10 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		return ReplyBye()
 	case "RSET" == command.verb:
 		proto.logf("Got RSET command, switching to MAIL state")
+		helo := proto.Message.Helo
 		proto.State = MAIL
 		proto.Message = &data.SMTPMessage{}
+		proto.Message.Helo = helo
 		return ReplyOk()
 	case "NOOP" == command.verb:
 		proto.logf("Got NOOP verb, staying in %s state", StateMap[proto.State])
