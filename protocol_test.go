@@ -299,7 +299,7 @@ func TestEHLO(t *testing.T) {
 	Convey("EHLO should work in MAIL state", t, func() {
 		proto := NewProtocol()
 		proto.Start()
-		proto.Command(ParseCommand("HELO localhost"))
+		proto.Command(ParseCommand("EHLO localhost"))
 		So(proto.State, ShouldEqual, MAIL)
 		So(proto.Message.Helo, ShouldEqual, "localhost")
 		reply := proto.Command(ParseCommand("EHLO localhost"))
