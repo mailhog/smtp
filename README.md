@@ -11,6 +11,7 @@ without compromising configurability or requiring specific backend implementatio
     * AUTH [RFC4954](http://tools.ietf.org/html/rfc4954)
     * PIPELINING [RFC2920](http://tools.ietf.org/html/rfc2920)
     * STARTTLS [RFC3207](http://tools.ietf.org/html/rfc3207)
+    * SMTPUTF8 [RFC6531](http://tools.ietf.org/html/rfc6531)
 
 ```go
 proto := NewProtocol()
