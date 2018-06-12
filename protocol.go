@@ -229,8 +229,10 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 		return ReplyBye()
 	case "RSET" == command.verb:
 		proto.logf("Got RSET command, switching to MAIL state")
+		helo := proto.Message.Helo
 		proto.State = MAIL
 		proto.Message = &data.SMTPMessage{}
+		proto.Message.Helo = helo
 		return ReplyOk()
 	case "NOOP" == command.verb:
 		proto.logf("Got NOOP verb, staying in %s state", StateMap[proto.State])
@@ -410,6 +412,7 @@ func (proto *Protocol) Command(command *Command) (reply *Reply) {
 // HELO creates a reply to a HELO command
 func (proto *Protocol) HELO(args string) (reply *Reply) {
 	proto.logf("Got HELO command, switching to MAIL state")
+	proto.resetState()
 	proto.State = MAIL
 	proto.Message.Helo = args
 	return ReplyOk("Hello " + args)
@@ -418,6 +421,7 @@ func (proto *Protocol) HELO(args string) (reply *Reply) {
 // EHLO creates a reply to a EHLO command
 func (proto *Protocol) EHLO(args string) (reply *Reply) {
 	proto.logf("Got EHLO command, switching to MAIL state")
+	proto.resetState()
 	proto.State = MAIL
 	proto.Message.Helo = args
 	replyArgs := []string{"Hello " + args, "PIPELINING"}
