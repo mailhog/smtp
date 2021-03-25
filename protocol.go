@@ -468,8 +468,8 @@ func (proto *Protocol) STARTTLS(args string) (reply *Reply) {
 	return ReplyReadyToStartTLS(callback)
 }
 
-var parseMailBrokenRegexp = regexp.MustCompile("(?i:From):\\s*<([^>]+)>")
-var parseMailRFCRegexp = regexp.MustCompile("(?i:From):<([^>]+)>")
+var parseMailBrokenRegexp = regexp.MustCompile("(?i:From):\\s*<([^>]*)>")
+var parseMailRFCRegexp = regexp.MustCompile("(?i:From):<([^>]*)>")
 
 // ParseMAIL returns the forward-path from a MAIL command argument
 func (proto *Protocol) ParseMAIL(mail string) (string, error) {

@@ -533,6 +533,9 @@ func TestParseMAIL(t *testing.T) {
 		m, err = proto.ParseMAIL("FROM:<oink>")
 		So(err, ShouldBeNil)
 		So(m, ShouldEqual, "oink")
+		m, err = proto.ParseMAIL("FROM:<>")
+		So(err, ShouldBeNil)
+		So(m, ShouldEqual, "")
 	})
 	Convey("ParseMAIL should return an error for invalid syntax", t, func() {
 		m, err := proto.ParseMAIL("FROM:oink")
@@ -550,6 +553,9 @@ func TestParseMAIL(t *testing.T) {
 		m, err = proto.ParseMAIL("FrOm:<oink@oink.mailhog.example>")
 		So(err, ShouldBeNil)
 		So(m, ShouldEqual, "oink@oink.mailhog.example")
+		m, err = proto.ParseMAIL("FrOm:<>")
+		So(err, ShouldBeNil)
+		So(m, ShouldEqual, "")
 	})
 	Convey("ParseMAIL should support broken sender syntax", t, func() {
 		m, err := proto.ParseMAIL("FROM: <oink>")
@@ -561,6 +567,9 @@ func TestParseMAIL(t *testing.T) {
 		m, err = proto.ParseMAIL("FrOm: <oink@oink.mailhog.example>")
 		So(err, ShouldBeNil)
 		So(m, ShouldEqual, "oink@oink.mailhog.example")
+		m, err = proto.ParseMAIL("FROM: <>")
+		So(err, ShouldBeNil)
+		So(m, ShouldEqual, "")
 	})
 	Convey("Error should be returned via Command", t, func() {
 		proto := NewProtocol()
